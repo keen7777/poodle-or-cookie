@@ -1,9 +1,10 @@
 
 #include <opencv2/opencv.hpp>
-
 #include <filesystem>
 #include <iostream>
 #include <string>
+
+#include "image_processing.hpp"
 
 class MorphologyWorkbench
 {
@@ -163,39 +164,12 @@ private:
         radius_ = cv::getTrackbarPos("Kernel radius", windowName_);
         shape_ = cv::getTrackbarPos("Shape 0-2", windowName_);
 
-        const int kernelSize = 2 * radius_ + 1;
-
-        const int shapes[] = {
-            cv::MORPH_RECT,
-            cv::MORPH_CROSS,
-            cv::MORPH_ELLIPSE};
-
-        cv::Mat kernel = cv::getStructuringElement(
-            shapes[shape_],
-            cv::Size(kernelSize, kernelSize));
-
-        if (operation_ == 0)
-        {
-            cv::erode(original_, processed_, kernel);
-        }
-        else if (operation_ == 1)
-        {
-            cv::dilate(original_, processed_, kernel);
-        }
-        else
-        {
-            const int operations[] = {
-                cv::MORPH_OPEN,
-                cv::MORPH_CLOSE,
-                cv::MORPH_TOPHAT,
-                cv::MORPH_BLACKHAT};
-
-            cv::morphologyEx(
-                original_,
-                processed_,
-                operations[operation_ - 2],
-                kernel);
-        }
+        processed_ = applyMorphology(
+        original_,
+        operation_,
+        radius_,
+        shape_
+    );
 
         preview_ = processed_.clone();
 

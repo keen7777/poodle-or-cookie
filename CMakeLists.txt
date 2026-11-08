@@ -7,11 +7,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(OpenCV REQUIRED)
 
-add_executable(defect_detector src/main.cpp)
+add_executable(defect_detector 
+    src/main.cpp
+    src/image_processing.cpp
+    )
 
 target_include_directories(
     defect_detector
     PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${OpenCV_INCLUDE_DIRS}
 )
 
