@@ -27,6 +27,30 @@ public:
         cv::createTrackbar(
             "Shape 0-2", windowName_,
             nullptr, 2, onTrackbar, this);
+        cv::createTrackbar(
+            "View 0=Process 1=Detect",
+            windowName_, nullptr, 1, onTrackbar, this);
+
+        cv::createTrackbar(
+            "Threshold",
+            windowName_, nullptr, 255, onTrackbar, this);
+
+        cv::createTrackbar(
+            "Threshold type 0=Bin 1=Inv",
+            windowName_, nullptr, 1, onTrackbar, this);
+
+        cv::createTrackbar(
+            "Minimum area",
+            windowName_, nullptr, 500, onTrackbar, this);
+
+        cv::setTrackbarPos("View 0=Process 1=Detect",
+                           windowName_, viewMode_);
+        cv::setTrackbarPos("Threshold",
+                           windowName_, thresholdValue_);
+        cv::setTrackbarPos("Threshold type 0=Bin 1=Inv",
+                           windowName_, thresholdType_);
+        cv::setTrackbarPos("Minimum area",
+                           windowName_, minArea_);
 
         cv::setTrackbarPos("Operation 0-5", windowName_, operation_);
         cv::setTrackbarPos("Kernel radius", windowName_, radius_);
@@ -65,9 +89,12 @@ private:
     cv::Mat original_;
     cv::Mat processed_;
     cv::Mat preview_;
+    cv::Mat binary_;
     cv::Mat detectionOutput_;
 
+    int viewMode_ = 0; // 0 Processing, 1 Detection
     int thresholdValue_ = 25;
+    int thresholdType_ = 0; // 0 Binary, 1 Binary Inverse
     int minArea_ = 10;
 
     int operation_ = 5;
@@ -82,32 +109,23 @@ private:
 
     void detectDefects()
     {
-        // Extract local dark structures
-        cv::Mat blackhat;
-        cv::Mat kernel = cv::getStructuringElement(
-            cv::MORPH_ELLIPSE,
-            cv::Size(2 * radius_ + 1, 2 * radius_ + 1));
+        const int type = thresholdType_ == 0
+                             ? cv::THRESH_BINARY
+                             : cv::THRESH_BINARY_INV;
 
-        cv::morphologyEx(
-            original_,
-            blackhat,
-            cv::MORPH_BLACKHAT,
-            kernel);
-
-        // Threshold the response
-        cv::Mat binary;
+        // Threshold the raw morphological response,
+        // not the normalized preview.
         cv::threshold(
-            blackhat,
-            binary,
+            processed_,
+            binary_,
             thresholdValue_,
             255,
-            cv::THRESH_BINARY);
+            type);
 
-        // Connected components
         cv::Mat labels, stats, centroids;
 
         int count = cv::connectedComponentsWithStats(
-            binary, labels, stats, centroids, 8, CV_32S);
+            binary_, labels, stats, centroids, 8, CV_32S);
 
         cv::cvtColor(
             original_,
@@ -116,16 +134,20 @@ private:
 
         for (int label = 1; label < count; ++label)
         {
-            int area = stats.at<int>(
-                label, cv::CC_STAT_AREA);
+            const int area =
+                stats.at<int>(label, cv::CC_STAT_AREA);
 
             if (area < minArea_)
                 continue;
 
-            int x = stats.at<int>(label, cv::CC_STAT_LEFT);
-            int y = stats.at<int>(label, cv::CC_STAT_TOP);
-            int w = stats.at<int>(label, cv::CC_STAT_WIDTH);
-            int h = stats.at<int>(label, cv::CC_STAT_HEIGHT);
+            const int x =
+                stats.at<int>(label, cv::CC_STAT_LEFT);
+            const int y =
+                stats.at<int>(label, cv::CC_STAT_TOP);
+            const int w =
+                stats.at<int>(label, cv::CC_STAT_WIDTH);
+            const int h =
+                stats.at<int>(label, cv::CC_STAT_HEIGHT);
 
             cv::rectangle(
                 detectionOutput_,
@@ -184,8 +206,39 @@ private:
                 0, 255, cv::NORM_MINMAX);
         }
 
+        viewMode_ = cv::getTrackbarPos(
+            "View 0=Process 1=Detect", windowName_);
+
+        thresholdValue_ = cv::getTrackbarPos(
+            "Threshold", windowName_);
+
+        thresholdType_ = cv::getTrackbarPos(
+            "Threshold type 0=Bin 1=Inv", windowName_);
+
+        minArea_ = cv::getTrackbarPos(
+            "Minimum area", windowName_);
+
         cv::Mat comparison;
-        cv::hconcat(original_, preview_, comparison);
+
+        if (viewMode_ == 0)
+        {
+            cv::hconcat(original_, preview_, comparison);
+        }
+        else
+        {
+            detectDefects();
+
+            cv::Mat originalColor;
+            cv::cvtColor(
+                original_,
+                originalColor,
+                cv::COLOR_GRAY2BGR);
+
+            cv::hconcat(
+                originalColor,
+                detectionOutput_,
+                comparison);
+        }
 
         cv::imshow(windowName_, comparison);
     }
@@ -209,6 +262,17 @@ private:
             std::cout << "Saved: " << prefix << "\n";
         else
             std::cerr << "Failed to save results.\n";
+
+        if (viewMode_ == 1)
+        {
+            cv::imwrite(
+                prefix + "_mask.png",
+                binary_);
+
+            cv::imwrite(
+                prefix + "_detections.png",
+                detectionOutput_);
+        }
     }
 };
 
