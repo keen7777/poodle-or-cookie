@@ -11,6 +11,7 @@ cv::Mat applyMorphology(
 
 struct DetectionResult {
     cv::Mat mask;
+    cv::Mat filteredMask;
     cv::Mat visualization;
     int candidateCount = 0;
 };

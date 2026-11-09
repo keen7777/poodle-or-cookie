@@ -18,44 +18,46 @@ public:
         cv::resizeWindow(windowName_, 1200, 700);
 
         cv::createTrackbar(
-            "Operation 0-5", windowName_,
+            operationLabel_, windowName_,
             nullptr, 5, onTrackbar, this);
 
         cv::createTrackbar(
-            "Kernel radius", windowName_,
+            radiusLabel_, windowName_,
             nullptr, 20, onTrackbar, this);
 
         cv::createTrackbar(
-            "Shape 0-2", windowName_,
+            shapeLabel_, windowName_,
             nullptr, 2, onTrackbar, this);
-        cv::createTrackbar(
-            "View 0=Process 1=Detect",
-            windowName_, nullptr, 1, onTrackbar, this);
 
         cv::createTrackbar(
-            "Threshold",
-            windowName_, nullptr, 255, onTrackbar, this);
+            viewLabel_, windowName_,
+            nullptr, 1, onTrackbar, this);
 
         cv::createTrackbar(
-            "Threshold type 0=Bin 1=Inv",
-            windowName_, nullptr, 1, onTrackbar, this);
+            thresholdLabel_, windowName_,
+            nullptr, 255, onTrackbar, this);
 
         cv::createTrackbar(
-            "Minimum area",
-            windowName_, nullptr, 500, onTrackbar, this);
+            thresholdTypeLabel_, windowName_,
+            nullptr, 1, onTrackbar, this);
 
-        cv::setTrackbarPos("View 0=Process 1=Detect",
-                           windowName_, viewMode_);
-        cv::setTrackbarPos("Threshold",
-                           windowName_, thresholdValue_);
-        cv::setTrackbarPos("Threshold type 0=Bin 1=Inv",
-                           windowName_, thresholdType_);
-        cv::setTrackbarPos("Minimum area",
-                           windowName_, minArea_);
+        cv::createTrackbar(
+            minAreaLabel_, windowName_,
+            nullptr, 500, onTrackbar, this);
 
-        cv::setTrackbarPos("Operation 0-5", windowName_, operation_);
-        cv::setTrackbarPos("Kernel radius", windowName_, radius_);
-        cv::setTrackbarPos("Shape 0-2", windowName_, shape_);
+        cv::createTrackbar(
+            displayLabel_, windowName_,
+            nullptr, 1, onTrackbar, this);
+
+        // Initialize trackbar positions
+        cv::setTrackbarPos(operationLabel_, windowName_, operation_);
+        cv::setTrackbarPos(radiusLabel_, windowName_, radius_);
+        cv::setTrackbarPos(shapeLabel_, windowName_, shape_);
+        cv::setTrackbarPos(viewLabel_, windowName_, viewMode_);
+        cv::setTrackbarPos(thresholdLabel_, windowName_, thresholdValue_);
+        cv::setTrackbarPos(thresholdTypeLabel_, windowName_, thresholdType_);
+        cv::setTrackbarPos(minAreaLabel_, windowName_, minArea_);
+        cv::setTrackbarPos(displayLabel_, windowName_, overlayMode_);
 
         update();
 
@@ -87,6 +89,27 @@ public:
 private:
     static constexpr const char *windowName_ = "Poodle-or-Cookie";
 
+    static constexpr const char *operationLabel_ =
+        "Operation: 0=Erosion 1=Dilation 2=Opening 3=Closing 4=Top-hat 5=Black-hat";
+
+    static constexpr const char *radiusLabel_ = "Kernel Radius";
+
+    static constexpr const char *shapeLabel_ =
+        "Shape: 0=Rectangle 1=Cross 2=Ellipse";
+
+    static constexpr const char *viewLabel_ =
+        "View: 0=Process 1=Detect";
+
+    static constexpr const char *thresholdLabel_ = "Threshold";
+
+    static constexpr const char *thresholdTypeLabel_ =
+        "Threshold Type: 0=Binary 1=Inverse";
+
+    static constexpr const char *minAreaLabel_ = "Minimum Area";
+
+    static constexpr const char *displayLabel_ =
+        "Display: 0=Boxes 1=Overlay";
+
     cv::Mat original_;
     cv::Mat processed_;
     cv::Mat preview_;
@@ -97,6 +120,7 @@ private:
     int thresholdValue_ = 25;
     int thresholdType_ = 0; // 0 Binary, 1 Binary Inverse
     int minArea_ = 10;
+    int overlayMode_ = 0;
 
     int operation_ = 5;
     int radius_ = 5;
@@ -110,9 +134,16 @@ private:
 
     void update()
     {
-        operation_ = cv::getTrackbarPos("Operation 0-5", windowName_);
-        radius_ = cv::getTrackbarPos("Kernel radius", windowName_);
-        shape_ = cv::getTrackbarPos("Shape 0-2", windowName_);
+
+        operation_ = cv::getTrackbarPos(operationLabel_, windowName_);
+        radius_ = cv::getTrackbarPos(radiusLabel_, windowName_);
+        shape_ = cv::getTrackbarPos(shapeLabel_, windowName_);
+
+        viewMode_ = cv::getTrackbarPos(viewLabel_, windowName_);
+        thresholdValue_ = cv::getTrackbarPos(thresholdLabel_, windowName_);
+        thresholdType_ = cv::getTrackbarPos(thresholdTypeLabel_, windowName_);
+        minArea_ = cv::getTrackbarPos(minAreaLabel_, windowName_);
+        overlayMode_ = cv::getTrackbarPos(displayLabel_, windowName_);
 
         processed_ = applyMorphology(
             original_,
@@ -128,18 +159,6 @@ private:
                 processed_, preview_,
                 0, 255, cv::NORM_MINMAX);
         }
-
-        viewMode_ = cv::getTrackbarPos(
-            "View 0=Process 1=Detect", windowName_);
-
-        thresholdValue_ = cv::getTrackbarPos(
-            "Threshold", windowName_);
-
-        thresholdType_ = cv::getTrackbarPos(
-            "Threshold type 0=Bin 1=Inv", windowName_);
-
-        minArea_ = cv::getTrackbarPos(
-            "Minimum area", windowName_);
 
         cv::Mat comparison;
 
@@ -159,7 +178,16 @@ private:
 
             // Store detection results
             binary_ = current_result.mask;
-            detectionOutput_ = current_result.visualization;
+            if (overlayMode_ == 0)
+            {
+                detectionOutput_ = current_result.visualization;
+            }
+            else
+            {
+                detectionOutput_ = createOverlay(
+                    original_,
+                    current_result.filteredMask);
+            }
 
             // Draw candidate count
             std::string candidate_str =
@@ -197,7 +225,7 @@ private:
 
         const std::string prefix =
             "results/op_" + std::to_string(operation_) +
-            "_kernel_" + std::to_string(2 * radius_ + 1) +
+            "_kernel_radius_" + std::to_string(radius_) +
             "_shape_" + std::to_string(shape_);
 
         const bool savedRaw =
@@ -217,10 +245,36 @@ private:
                 prefix + "_mask.png",
                 binary_);
 
+            const std::string displaySuffix =
+                overlayMode_ == 0 ? "_boxes.png" : "_overlay.png";
+
             cv::imwrite(
-                prefix + "_detections.png",
+                prefix + displaySuffix,
                 detectionOutput_);
         }
+    }
+
+    cv::Mat createOverlay(
+        const cv::Mat &original,
+        const cv::Mat &mask)
+    {
+        cv::Mat base;
+        cv::cvtColor(original, base, cv::COLOR_GRAY2BGR);
+        cv::Mat redLayer(
+            base.size(),
+            base.type(),
+            cv::Scalar(0, 0, 255));
+        cv::Mat blended;
+
+        cv::addWeighted(
+            base,
+            0.6,
+            redLayer,
+            0.4,
+            0,
+            blended);
+        blended.copyTo(base, mask);
+        return base;
     }
 };
 

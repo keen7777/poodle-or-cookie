@@ -47,7 +47,6 @@ cv::Mat applyMorphology(
     return output;
 }
 
-
 DetectionResult detectDefects(
     const cv::Mat &original,
     const cv::Mat &processed,
@@ -74,7 +73,9 @@ DetectionResult detectDefects(
     int count = cv::connectedComponentsWithStats(
         temp_result.mask, labels, stats, centroids, 8, CV_32S);
 
-    
+    temp_result.filteredMask = cv::Mat::zeros(
+        temp_result.mask.size(),
+        CV_8UC1);
 
     cv::cvtColor(
         original,
@@ -88,6 +89,10 @@ DetectionResult detectDefects(
 
         if (area < minArea)
             continue;
+            
+        temp_result.filteredMask.setTo(
+            255,
+            labels == label);
 
         const int x =
             stats.at<int>(label, cv::CC_STAT_LEFT);
