@@ -108,56 +108,6 @@ private:
         self->update();
     }
 
-    void detectDefects()
-    {
-        const int type = thresholdType_ == 0
-                             ? cv::THRESH_BINARY
-                             : cv::THRESH_BINARY_INV;
-
-        // Threshold the raw morphological response,
-        // not the normalized preview.
-        cv::threshold(
-            processed_,
-            binary_,
-            thresholdValue_,
-            255,
-            type);
-
-        cv::Mat labels, stats, centroids;
-
-        int count = cv::connectedComponentsWithStats(
-            binary_, labels, stats, centroids, 8, CV_32S);
-
-        cv::cvtColor(
-            original_,
-            detectionOutput_,
-            cv::COLOR_GRAY2BGR);
-
-        for (int label = 1; label < count; ++label)
-        {
-            const int area =
-                stats.at<int>(label, cv::CC_STAT_AREA);
-
-            if (area < minArea_)
-                continue;
-
-            const int x =
-                stats.at<int>(label, cv::CC_STAT_LEFT);
-            const int y =
-                stats.at<int>(label, cv::CC_STAT_TOP);
-            const int w =
-                stats.at<int>(label, cv::CC_STAT_WIDTH);
-            const int h =
-                stats.at<int>(label, cv::CC_STAT_HEIGHT);
-
-            cv::rectangle(
-                detectionOutput_,
-                cv::Rect(x, y, w, h),
-                cv::Scalar(0, 0, 255),
-                2);
-        }
-    }
-
     void update()
     {
         operation_ = cv::getTrackbarPos("Operation 0-5", windowName_);
@@ -165,11 +115,10 @@ private:
         shape_ = cv::getTrackbarPos("Shape 0-2", windowName_);
 
         processed_ = applyMorphology(
-        original_,
-        operation_,
-        radius_,
-        shape_
-    );
+            original_,
+            operation_,
+            radius_,
+            shape_);
 
         preview_ = processed_.clone();
 
@@ -198,10 +147,35 @@ private:
         {
             cv::hconcat(original_, preview_, comparison);
         }
+
         else
         {
-            detectDefects();
+            DetectionResult current_result = detectDefects(
+                original_,
+                processed_,
+                thresholdValue_,
+                thresholdType_,
+                minArea_);
 
+            // Store detection results
+            binary_ = current_result.mask;
+            detectionOutput_ = current_result.visualization;
+
+            // Draw candidate count
+            std::string candidate_str =
+                "Candidates: " +
+                std::to_string(current_result.candidateCount);
+
+            cv::putText(
+                detectionOutput_,
+                candidate_str,
+                cv::Point(20, 40),
+                cv::FONT_HERSHEY_SIMPLEX,
+                0.8,
+                cv::Scalar(0, 255, 0),
+                2);
+
+            // Convert original image to BGR for comparison
             cv::Mat originalColor;
             cv::cvtColor(
                 original_,

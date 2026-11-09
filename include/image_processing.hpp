@@ -8,3 +8,17 @@ cv::Mat applyMorphology(
     int radius,
     int shape
 );
+
+struct DetectionResult {
+    cv::Mat mask;
+    cv::Mat visualization;
+    int candidateCount = 0;
+};
+
+DetectionResult detectDefects(
+    const cv::Mat& original,
+    const cv::Mat& processed,
+    int thresholdValue,
+    int thresholdType,
+    int minArea
+);
